@@ -1,0 +1,18 @@
+{
+  "manifest_version": 2,
+  "name": "Steam Inventory Sell Helper",
+  "version": "1.0",
+
+  "description": "Adds tools to perform quick sells in Steam",
+
+  "icons": {
+    "48": "icons/border-48.png"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["*://steamcommunity.com/*/*/inventory"],
+      "js": ["addon.js"]
+    }
+  ]
+}
