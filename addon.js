@@ -8,6 +8,13 @@ button.style.top = "10px";
 button.style.left = "10px";
 document.body.appendChild(button);
 
+// Stats for items
+const container = document.createElement("div");
+container.style.position = "fixed";
+container.style.top = "50px"; // avoid overlapping with the "Load stats" button
+container.style.left = "10px";
+document.body.appendChild(container);
+
 // Load games list
 const games = document.getElementsByClassName("games_list_tab");
 const gameIdArray = Array.from(games).map(el => parseInt(el.id.match(/\d+/)[0]));
@@ -47,6 +54,28 @@ async function loadGameInventory(id) {
     console.log(statsPerGame);
     document.getElementById("pagebtn_next").click();
   }
+  drawStats();
+}
+
+function drawStats() {
+  Object.keys(statsPerGame).forEach((itemName, index) => {
+    const itemContainer = document.createElement("div");
+    itemContainer.style.marginBottom = "10px"; // add some space between items
+  
+    const label = document.createElement("label");
+    label.textContent = itemName + " (" + statsPerGame[itemName].length + ")";
+    itemContainer.appendChild(label);
+  
+    const textField = document.createElement("input");
+    textField.type = "text";
+    itemContainer.appendChild(textField);
+  
+    const button = document.createElement("button");
+    button.textContent = "Action";
+    itemContainer.appendChild(button);
+  
+    container.appendChild(itemContainer);
+  });
 }
 
 let previousItems = [];
@@ -129,9 +158,9 @@ async function loadItem(index, items, lastIndex) {
   const itemName = itemNameElement ? itemNameElement.innerText : "Unknown Item";
   //console.log(itemName, document.getElementById("iteminfo0_item_name"), document.getElementById("iteminfo1_item_name"));
   if (!statsPerGame[itemName]) {
-    statsPerGame[itemName] = 1;
+    statsPerGame[itemName] = [newUrlItem.split("#")[1]];
   } else {
-    statsPerGame[itemName]++;
+    statsPerGame[itemName].push(newUrlItem.split("#")[1]);
   }
 
   if (!loggedItems[newUrlItem]) {
