@@ -16,63 +16,131 @@ console.log(gameObjects);
 
 let uri = window.location.href.split("#")[0];
 let loggedItems = {};
+let statsPerGame = {};
+
+// Helpers
+function arraysEqual(arr1, arr2) {
+  if (arr1.length !== arr2.length) {
+    return false; // arrays are not the same length, so they can't be equal
+  }
+
+  for (let i = 0; i < arr1.length; i++) {
+    if (arr1[i] !== arr2[i]) {
+      return false; // found a mismatch, so arrays are not equal
+    }
+  }
+
+  return true; // arrays are equal
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 async function loadGameInventory(id) {
   const newUrl = `${uri}#${id}`;
   window.location.href = newUrl;
-  await waitForPageLoad();
-  await loadItems();
+  const maxValue = Number(document.getElementById("pagecontrol_max").innerText);
+  for (let i = 1; i < maxValue; i++) {
+    await waitForPageLoad();
+    await loadItems();
+    console.log(statsPerGame);
+    document.getElementById("pagebtn_next").click();
+  }
 }
 
-function loadItems() {
-  const maxValue = Number(document.getElementById("pagecontrol_max").innerText);
-  const items = [...document.getElementsByClassName("inventory_item_link")].slice(0, 25);
+let previousItems = [];
+function getVisibleInventoryItems() {
+  let nodes = document.querySelectorAll('div.inventory_page:not([style*="display: none;"])')[0].childNodes;
+  let uri = [];
+  let nodesArray = Array.from(nodes);
+  for (let i = 0; i < nodesArray.length; i++) {
+    uri.push("#" + nodesArray[i].firstChild.id);
+  }
+  return uri;
+}
+async function loadItems() {
+  let items = getVisibleInventoryItems();
+  //console.log(currentItems);
+
+  while (arraysEqual(previousItems, items)) {
+    //console.log("wait...", previousItems, items);
+    await sleep(500);
+
+    items = getVisibleInventoryItems();
+    //console.log(currentItems);
+  }
+
+  await sleep(1000);
+  previousItems = items;
 
   let currentIndex = 1;
+  let lastIndex = -1;
 
   return new Promise(resolve => {
     async function loadNextItem() {
-      if (currentIndex > maxValue) {
+      const count = document.getElementsByClassName("inventory_page")[2].childElementCount - document.getElementsByClassName("itemHolder disabled").length;
+      if (currentIndex > count) {
         resolve(); // call the callback when all items are loaded
         return;
       }
-      await loadItem(currentIndex, items);
+      lastIndex = await loadItem(currentIndex, items, lastIndex);
       currentIndex++;
       loadNextItem();
     }
     loadNextItem();
   });
 }
-
 function isElementHidden(element) {
   const style = window.getComputedStyle(element);
   return style.display === "none";
 }
 
-async function loadItem(index, items) {
-  if (index > items.length) return; // exit if we've reached the end of the items array
+async function loadItem(index, items, lastIndex) {
+  //if (index > items.length) return; // exit if we've reached the end of the items array
 
-  const href = items[index - 1].getAttribute("href");
+  const href = items[index - 1];//.getAttribute("href");
+  //console.log(href);
   const newUrlItem = `${uri}${href}`;
-  console.log(newUrlItem);
+  //console.log(newUrlItem);
   window.location.href = newUrlItem;
 
   await waitForItemInfoLoad();
 
-  let itemNameElement = "";
-  if (!isElementHidden(document.getElementById("iteminfo0_item_name"))) {
-    itemNameElement = document.getElementById("iteminfo0_item_name")
-  } else {
-    itemNameElement = document.getElementById("iteminfo1_item_name")
+  if (lastIndex === -1) {
+    if (document.getElementById("iteminfo0_item_name").innerText === "") {
+      itemNameElement = document.getElementById("iteminfo1_item_name")
+      lastIndex = 1;
+    } else {
+      itemNameElement = document.getElementById("iteminfo0_item_name")
+      lastIndex = 0;
+    }
+  }
+  else {
+    if (lastIndex == 0) {
+      itemNameElement = document.getElementById("iteminfo1_item_name")
+      lastIndex = 1;
+    } else {
+      itemNameElement = document.getElementById("iteminfo0_item_name")
+      lastIndex = 0;
+    }
   }
 
   const itemName = itemNameElement ? itemNameElement.innerText : "Unknown Item";
-  console.log(itemName);
+  //console.log(itemName, document.getElementById("iteminfo0_item_name"), document.getElementById("iteminfo1_item_name"));
+  if (!statsPerGame[itemName]) {
+    statsPerGame[itemName] = 1;
+  } else {
+    statsPerGame[itemName]++;
+  }
+
   if (!loggedItems[newUrlItem]) {
     //console.log(itemName);
     loggedItems[newUrlItem] = true;
   }
+  return lastIndex;
 }
+
 function waitForPageLoad() {
   return new Promise(resolve => {
     const checkReady = () => {
@@ -99,38 +167,12 @@ function waitForItemInfoLoad() {
       const iteminfo0 = document.getElementById("iteminfo0");
       const iteminfo1 = document.getElementById("iteminfo1");
 
-      if (loadedOnce) {
-        if (!isElementHidden(iteminfo0) && lastLoaded == 1) {
-            clearTimeout(timeout);
-            me.disconnect(); // stop observing
-            resolve();
-        }
-        else if (!isElementHidden(iteminfo1) && lastLoaded == 0) {
-            clearTimeout(timeout);
-            me.disconnect(); // stop observing
-            resolve();
-        }
-      } else {
-        loadedOnce = true;
-        if (!isElementHidden(iteminfo0)) {
-          lastLoaded = 0;
-        } else {
-          lastLoaded = 1;
-        }
-        if ((iteminfo0 && iteminfo0.contains(document.getElementById("iteminfo0_item_name"))) ||
+      if ((iteminfo0 && iteminfo0.contains(document.getElementById("iteminfo0_item_name"))) ||
             (iteminfo1 && iteminfo1.contains(document.getElementById("iteminfo1_item_name")))) {
             clearTimeout(timeout);
             me.disconnect(); // stop observing
             resolve();
         }
-      }
-
-      if ((iteminfo0 && iteminfo0.contains(document.getElementById("iteminfo0_item_name"))) ||
-          (iteminfo1 && iteminfo1.contains(document.getElementById("iteminfo1_item_name")))) {
-        clearTimeout(timeout);
-        me.disconnect(); // stop observing
-        resolve();
-      }
     });
 
     // Start observing the document for changes
