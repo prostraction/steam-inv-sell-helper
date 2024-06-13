@@ -1,68 +1,155 @@
 document.body.style.border = "5px solid red";
 
+// Button to begin stats process
+const button = document.createElement("button");
+button.textContent = "Load stats";
+button.style.position = "fixed";
+button.style.top = "10px";
+button.style.left = "10px";
+document.body.appendChild(button);
+
 // Load games list
 const games = document.getElementsByClassName("games_list_tab");
 const gameIdArray = Array.from(games).map(el => parseInt(el.id.match(/\d+/)[0]));
 const gameObjects = gameIdArray.map(id => ({ id, items: [] }));
 console.log(gameObjects);
 
-// Helper function to wait for page load
-function waitForPageLoad(callback) {
-  let timeout = 0;
-  const interval = setInterval(() => {
-    const itemName = document.getElementById("iteminfo0_item_name");
-    if (itemName && itemName.innerText.trim() !== "") {
-      clearInterval(interval);
-      callback();
-    }
-    timeout += 100;
-    if (timeout > 10000) {
-      clearInterval(interval);
-      console.error("Page load timeout");
-    }
-  }, 100);
-}
+let uri = window.location.href.split("#")[0];
+let loggedItems = {};
 
-// Load each game inventory
-let uri; // declare uri here
-let loggedItems = {}
-
-for (const id of gameIdArray) {
-  // Load new game inventory
-  uri = window.location.href.split("#")[0];
-  const newUrl = uri + '#' + id;
+async function loadGameInventory(id) {
+  const newUrl = `${uri}#${id}`;
   window.location.href = newUrl;
-
-  // Wait until the new page is fully loaded
-  waitForPageLoad(() => {
-    loadItems();
-  });
+  await waitForPageLoad();
+  await loadItems();
 }
 
 function loadItems() {
-  // Load all items in page:
-  
   const maxValue = Number(document.getElementById("pagecontrol_max").innerText);
-  for (let i = 1; i <= maxValue; i++) {
-    const items = [...document.getElementsByClassName("inventory_item_link")].slice(0, 25);
-    loadItem(0, items);
-    //InventoryNextPage();
-  }
+  const items = [...document.getElementsByClassName("inventory_item_link")].slice(0, 25);
+
+  let currentIndex = 1;
+
+  return new Promise(resolve => {
+    async function loadNextItem() {
+      if (currentIndex > maxValue) {
+        resolve(); // call the callback when all items are loaded
+        return;
+      }
+      await loadItem(currentIndex, items);
+      currentIndex++;
+      loadNextItem();
+    }
+    loadNextItem();
+  });
 }
 
-function loadItem(index, items) {
-  if (index >= items.length) return;
-  const href = items[index].getAttribute("href");
-  const newUrlItem = uri + href;
+function isElementHidden(element) {
+  const style = window.getComputedStyle(element);
+  return style.display === "none";
+}
+
+async function loadItem(index, items) {
+  if (index > items.length) return; // exit if we've reached the end of the items array
+
+  const href = items[index - 1].getAttribute("href");
+  const newUrlItem = `${uri}${href}`;
   console.log(newUrlItem);
   window.location.href = newUrlItem;
 
-  waitForPageLoad(() => {
-    const itemName = document.getElementById("iteminfo0_item_name").innerText;
-    if (!loggedItems[newUrlItem]) {
-      console.log(itemName);
-      loggedItems[newUrlItem] = true;
-    }
-    loadItem(index + 1, items);
+  await waitForItemInfoLoad();
+
+  let itemNameElement = "";
+  if (!isElementHidden(document.getElementById("iteminfo0_item_name"))) {
+    itemNameElement = document.getElementById("iteminfo0_item_name")
+  } else {
+    itemNameElement = document.getElementById("iteminfo1_item_name")
+  }
+
+  const itemName = itemNameElement ? itemNameElement.innerText : "Unknown Item";
+  console.log(itemName);
+  if (!loggedItems[newUrlItem]) {
+    //console.log(itemName);
+    loggedItems[newUrlItem] = true;
+  }
+}
+function waitForPageLoad() {
+  return new Promise(resolve => {
+    const checkReady = () => {
+      if (document.readyState === "complete") {
+        resolve();
+      } else {
+        setTimeout(checkReady, 500);
+      }
+    };
+    checkReady();
   });
 }
+
+let loadedOnce = false;
+let lastLoaded = 0;
+function waitForItemInfoLoad() {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      observer.disconnect();
+      reject(new Error("Timeout waiting for item info to load"));
+    }, 10000); // 10 seconds timeout
+    
+    const observer = new MutationObserver((mutations, me) => {
+      const iteminfo0 = document.getElementById("iteminfo0");
+      const iteminfo1 = document.getElementById("iteminfo1");
+
+      if (loadedOnce) {
+        if (!isElementHidden(iteminfo0) && lastLoaded == 1) {
+            clearTimeout(timeout);
+            me.disconnect(); // stop observing
+            resolve();
+        }
+        else if (!isElementHidden(iteminfo1) && lastLoaded == 0) {
+            clearTimeout(timeout);
+            me.disconnect(); // stop observing
+            resolve();
+        }
+      } else {
+        loadedOnce = true;
+        if (!isElementHidden(iteminfo0)) {
+          lastLoaded = 0;
+        } else {
+          lastLoaded = 1;
+        }
+        if ((iteminfo0 && iteminfo0.contains(document.getElementById("iteminfo0_item_name"))) ||
+            (iteminfo1 && iteminfo1.contains(document.getElementById("iteminfo1_item_name")))) {
+            clearTimeout(timeout);
+            me.disconnect(); // stop observing
+            resolve();
+        }
+      }
+
+      if ((iteminfo0 && iteminfo0.contains(document.getElementById("iteminfo0_item_name"))) ||
+          (iteminfo1 && iteminfo1.contains(document.getElementById("iteminfo1_item_name")))) {
+        clearTimeout(timeout);
+        me.disconnect(); // stop observing
+        resolve();
+      }
+    });
+
+    // Start observing the document for changes
+    observer.observe(document, {
+      childList: true,
+      subtree: true
+    });
+  });
+}
+
+// Event listener for button click
+button.addEventListener("click", async () => {
+  const currentHash = window.location.hash;
+  const currentId = currentHash ? parseInt(currentHash.replace("#", "")) : null;
+  if (currentId) {
+    await loadGameInventory(currentId);
+  } else {
+    console.log("No game ID found in the current URI.");
+  }
+});
+
+//loadAllGameInventories();
