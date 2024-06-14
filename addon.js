@@ -28,16 +28,14 @@ let statsPerGame = {};
 // Helpers
 function arraysEqual(arr1, arr2) {
   if (arr1.length !== arr2.length) {
-    return false; // arrays are not the same length, so they can't be equal
+    return false;
   }
-
   for (let i = 0; i < arr1.length; i++) {
     if (arr1[i] !== arr2[i]) {
-      return false; // found a mismatch, so arrays are not equal
+      return false;
     }
   }
-
-  return true; // arrays are equal
+  return true;
 }
 
 function sleep(ms) {
@@ -48,7 +46,7 @@ async function loadGameInventory(id) {
   const newUrl = `${uri}#${id}`;
   window.location.href = newUrl;
   const maxValue = Number(document.getElementById("pagecontrol_max").innerText);
-  for (let i = 1; i < maxValue; i++) {
+  for (let i = 1; i <= maxValue; i++) {
     await waitForPageLoad();
     await loadItems();
     console.log(statsPerGame);
@@ -84,8 +82,11 @@ function getVisibleInventoryItems() {
   let uri = [];
   let nodesArray = Array.from(nodes);
   for (let i = 0; i < nodesArray.length; i++) {
-    uri.push("#" + nodesArray[i].firstChild.id);
+    if (nodesArray[i].style.display === "") {
+      uri.push("#" + nodesArray[i].firstChild.id);
+    }
   }
+  console.log(uri);
   return uri;
 }
 async function loadItems() {
@@ -108,12 +109,14 @@ async function loadItems() {
 
   return new Promise(resolve => {
     async function loadNextItem() {
-      const count = document.getElementsByClassName("inventory_page")[2].childElementCount - document.getElementsByClassName("itemHolder disabled").length;
+      //const invPageCount = document.getElementsByClassName("inventory_page").length;
+      const count = document.getElementsByClassName("inventory_page")[1].childElementCount - document.getElementsByClassName("itemHolder disabled").length;
       if (currentIndex > count) {
         resolve(); // call the callback when all items are loaded
         return;
       }
       lastIndex = await loadItem(currentIndex, items, lastIndex);
+
       currentIndex++;
       loadNextItem();
     }
@@ -126,13 +129,14 @@ function isElementHidden(element) {
 }
 
 async function loadItem(index, items, lastIndex) {
-  //if (index > items.length) return; // exit if we've reached the end of the items array
-
+  if (index > items.length) return; // exit if we've reached the end of the items array
+  console.log(items);
   const href = items[index - 1];//.getAttribute("href");
   //console.log(href);
   const newUrlItem = `${uri}${href}`;
-  //console.log(newUrlItem);
-  window.location.href = newUrlItem;
+  console.log(newUrlItem);
+  await sleep(1000);
+  window.location.href = newUrlItem; // inventoryundefined
 
   await waitForItemInfoLoad();
 
