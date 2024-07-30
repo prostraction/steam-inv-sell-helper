@@ -101,7 +101,7 @@ async function loadItems() {
     //console.log(currentItems);
   }
 
-  await sleep(1000);
+  await sleep(900);
   previousItems = items;
 
   let currentIndex = 1;
